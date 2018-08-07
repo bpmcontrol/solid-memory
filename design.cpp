@@ -15,7 +15,7 @@ struct input_statement
 {/*converts from input for f() to numerical/boolean input accepted by the internal language*/};
 
 struct arithmetic_statement
-{/*sub-classed by arithmeric, logical operations: max(),+,-,/,*,&&,||,^,~ */};
+{/*sub-classed by arithmetic, logical operations: max(),+,-,/,*,&&,||,^,~ */};
 
 struct conditional_statement
 {/*sub-classed by comparissons, if-else, switch-case */};
@@ -29,15 +29,15 @@ struct loop_statement
 
 class statement_hirarchy
 {/*holds a description of a function. 
-   mapps inputs into statements and forwards the results to other statements.
+   maps inputs into statements and forwards the results to other statements.
    Results in a (boolean) value*/};
 
 class code
 {/*holds a statement_hirarchy, 
-   accepts a statement_list of input_statments and returns the result of the hirarchy when operating on those inputs*/
+   accepts a statement_list of input_statements and returns the result of the hirarchy when operating on those inputs*/
 public:
   code(statement_hirarchy s):_s{s};
-  result_type compute(input_ststement ... s){}; /*for debugging*/
+  result_type compute(input_statement ... s){}; /*for debugging*/
 private:
   statement_hirarchy _s;
 };
@@ -124,19 +124,74 @@ bool did_player1_really_win = verifier<zkSNARK_type>{verification_key, poker_pla
  This is an attempt to give a bit more general solution.*/
 
 /*
-One possibility is to encode the poker game as a polynmial f(map(x),map(y))=z
+One possibility is to encode the poker game as a polynomial f(map(x),map(y))=z
  x = hand1
  y = hand2
  map = a mapping from a player's hands to integers s.t. hand1 beats hand2 in a game IFF map(hand1) > map(hand2)
-such a mapping is almost trivial since there is a clear order between poker hands eg royal-flush beats pair
+such a mapping is almost trivial since there is a clear order between poker hands e.g. royal-flush beats pair
 
 Once we have such a polynomial f(), we can use any multiplicative homomorphic encryption (like ElGamal)
 Take ElGamal(f) and treat it as f in the generator.
 That way the verifier can have the prover prove that he can win without exposing verifier's hand.
 
+Meaning, f'(x) = f(x,y = hand1)
+
 */
 
 /*
 Another might be to develop a specific ZK proof for the poker game.
+
+*/
+
+/*
+One wasteful way would be for the prover to publish proofs for every equivalent type of hand player2 might have.
+(color agnostic, number agnostic where possible)
+Employing something like:
+ map = a mapping from a player's hands to integers s.t. hand1 beats hand2 in a game IFF map(hand1) > map(hand2) 
+
+The verifier knows which proof to privatley verify.
+This retains the ZK property since all the verifier learns is that player1 had a hand that could beat
+the hand of player2, and that was already known whenever it is known that player1 won.
+Verifier does not learn which of the possible hands player1 has.
+
+A less wasteful approach would be to employ something like the previous mapping with some <multiplicative> homomorphic encryption scheme (like ElGamal)
+Instead of proving f(hand1,hand2) = TRUE
+
+The public input will include:
+  'e' a public encryption key chosen once by verifier and published alongside the generation step.
+  E(hand2) meaning hand2 encrypted with e, done by the verifier during the generation step.
+Prover will prove f(E(hand1),E(hand2)) without revealing E(hand1).
+Which if f is a well behaved polynomial with good enough homomorphic encryption verifier knows how to decrypt into
+ map = a mapping from a player's hands to integers s.t. hand1 beats hand2 in a game IFF map(hand1) > map(hand2)  
+
+*/
+
+/*
+If we wish to allow player2 to also not reveal his hand, we may employ the following scheme:
+  map = a mapping from a player's hands to integers s.t. hand1 beats hand2 in a game IFF map(hand1) > map(hand2)
+  E = a public key encryption scheme that is somewhat homomorphic
+  'e' = a public encryption key chosen once by verifier and published alongside the generation step.
+  f(hand1, hand2) polynomial, f = 0 <=> hand1 wins over hand2 <=> map(hand1) > map(hand2)
+
+Thus, during generation we take f'(x) := f(E(e,hand2),x) 
+with E(e,hand2) provided by verifier during generation.
+
+Prover will prove that he computed f'(E(e,hand1)) = E(e,0) without revealing hand1 or learning hand2
+
+Due to homomorphism:
+f'(E(e,hand1)) = f((E(e,hand2),E(e,hand1)) //by definition
+f((E(e,hand2),E(e,hand1)) = E(e,f(hand1,hand2)) //by homomorphism
+Thus:
+f'(E(e,hand1)) = E(e,0) <=> E(e,f(hand1,hand2)) = E(e,0)
+And if E is half decent (large enough group, which is not an issue with mapping poker hands to ints):
+E(e,f(hand1,hand2)) = E(e,0) <=> f(hand1,hand2)) = 0
+
+
+The public input will include:                                                                                                                                                                                   
+  'e' a public encryption key chosen once by verifier and published alongside the generation step.
+  'r' a random offset value in the realm of E()
+  E(hand2) meaning hand2 encrypted with e, done by the verifier during the generation step.
+  Thus,
+Prover will provide a proof that 
 
 */
